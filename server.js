@@ -16,12 +16,19 @@ connectDB();
 app.use(
   cors({
     origin: [
-      "http://localhost:3000",          // local frontend
-      "https://examify.vercel.app"      // production frontend
+      "http://localhost:3000",
+      "https://examify.vercel.app",
+      "https://examify.exoiteitservices.com"
     ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
   })
 );
+
+app.options("*", cors());
+
+
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
