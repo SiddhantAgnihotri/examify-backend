@@ -4,15 +4,21 @@ const Submission = require("../models/Submission");
 const User = require("../models/User");
 
 /* ===============================
-   GET ASSIGNED EXAMS
+   GET ASSIGNED EXAMS (SECURE)
 ================================ */
 exports.getAssignedExams = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const student = await User.findById(req.user.id);
 
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // 🔒 Only exams created by student's teacher
     const exams = await Exam.find({
-      _id: { $in: user.assignedExams },
-      status: "published"
+      _id: { $in: student.assignedExams },
+      status: "published",
+      createdBy: student.createdBy
     });
 
     res.json(exams);
@@ -22,13 +28,18 @@ exports.getAssignedExams = async (req, res) => {
 };
 
 /* ===============================
-   START / RESUME EXAM
+   START / RESUME EXAM (SECURE)
 ================================ */
 exports.startExam = async (req, res) => {
   try {
     const { examId } = req.params;
 
-    // ❌ BLOCK IF ALREADY SUBMITTED
+    const student = await User.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // ❌ Already submitted
     const alreadySubmitted = await Submission.findOne({
       examId,
       studentId: req.user.id,
@@ -41,8 +52,14 @@ exports.startExam = async (req, res) => {
         .json({ message: "Exam already submitted" });
     }
 
-    const exam = await Exam.findById(examId);
-    if (!exam || exam.status !== "published") {
+    // 🔒 Exam must belong to same teacher
+    const exam = await Exam.findOne({
+      _id: examId,
+      status: "published",
+      createdBy: student.createdBy
+    });
+
+    if (!exam) {
       return res.status(404).json({ message: "Exam not available" });
     }
 
@@ -54,12 +71,11 @@ exports.startExam = async (req, res) => {
       return res.status(403).json({ message: "Exam time is over" });
     }
 
-    const user = await User.findById(req.user.id);
-    if (!user.assignedExams.includes(examId)) {
+    if (!student.assignedExams.includes(examId)) {
       return res.status(403).json({ message: "Exam not assigned" });
     }
 
-    // 🔄 FIND OR CREATE IN-PROGRESS SUBMISSION
+    // 🔄 Resume / Create submission
     let submission = await Submission.findOne({
       examId,
       studentId: req.user.id
@@ -89,12 +105,23 @@ exports.startExam = async (req, res) => {
 };
 
 /* ===============================
-   SUBMIT EXAM (FINAL)
+   SUBMIT EXAM (SECURE)
 ================================ */
 exports.submitExam = async (req, res) => {
   try {
     const { examId } = req.params;
     const { answers } = req.body;
+
+    const student = await User.findById(req.user.id);
+
+    const exam = await Exam.findOne({
+      _id: examId,
+      createdBy: student.createdBy
+    });
+
+    if (!exam) {
+      return res.status(403).json({ message: "Invalid exam" });
+    }
 
     const submission = await Submission.findOne({
       examId,

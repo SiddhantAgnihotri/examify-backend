@@ -1,52 +1,119 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 
-// Create Student (Teacher only)
+/* ===============================
+   CREATE STUDENT (TEACHER ONLY)
+================================ */
 exports.createStudent = async (req, res) => {
-  const { name, email, password, userId } = req.body;
+  try {
+    const { name, email, password, userId } = req.body;
 
-  const existing = await User.findOne({ email });
-  if (existing) {
-    return res.status(400).json({ message: "Email already exists" });
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const student = await User.create({
+      name,
+      email,
+      userId,
+      password: hashedPassword,
+      role: "student",
+      createdBy: req.user.id // 🔒 LINK TO TEACHER
+    });
+
+    res.status(201).json({
+      message: "Student created successfully",
+      studentId: student._id
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to create student" });
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const student = await User.create({
-    name,
-    email,
-    userId, // optional student code
-    password: hashedPassword,
-    role: "student"
-  });
-
-  res.status(201).json({
-    message: "Student created successfully",
-    email: student.email
-  });
 };
 
-
+/* ===============================
+   GET ALL STUDENTS (TEACHER ONLY)
+================================ */
 exports.getAllStudents = async (req, res) => {
-  const students = await User.find({ role: "student" })
-    .select("name email userId");
-  res.json(students);
+  try {
+    const students = await User.find({
+      role: "student",
+      createdBy: req.user.id // 🔒 ONLY OWN STUDENTS
+    }).select("name email userId");
+
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch students" });
+  }
 };
 
-
+/* ===============================
+   GET STUDENT BY ID
+================================ */
 exports.getStudentById = async (req, res) => {
-  const student = await User.findById(req.params.id).select("-password");
-  res.json(student);
+  try {
+    const student = await User.findOne({
+      _id: req.params.id,
+      role: "student",
+      createdBy: req.user.id // 🔒 OWNERSHIP CHECK
+    }).select("-password");
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.json(student);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch student" });
+  }
 };
 
+/* ===============================
+   UPDATE STUDENT
+================================ */
 exports.updateStudent = async (req, res) => {
-  const { name, email, userId } = req.body;
-  await User.findByIdAndUpdate(req.params.id, { name, email, userId });
-  res.json({ message: "Student updated" });
+  try {
+    const { name, email, userId } = req.body;
+
+    const student = await User.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        role: "student",
+        createdBy: req.user.id // 🔒 PREVENT CROSS-TEACHER UPDATE
+      },
+      { name, email, userId },
+      { new: true }
+    );
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.json({ message: "Student updated successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update student" });
+  }
 };
 
+/* ===============================
+   DELETE STUDENT
+================================ */
 exports.deleteStudent = async (req, res) => {
-  await User.findByIdAndDelete(req.params.id);
-  res.json({ message: "Student deleted" });
-};
+  try {
+    const student = await User.findOneAndDelete({
+      _id: req.params.id,
+      role: "student",
+      createdBy: req.user.id // 🔒 PREVENT CROSS-TEACHER DELETE
+    });
 
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.json({ message: "Student deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete student" });
+  }
+};

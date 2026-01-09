@@ -1,26 +1,67 @@
 const mongoose = require("mongoose");
 
-const ExamSchema = new mongoose.Schema({
-  title: String,
-  instituteName: String,
-  examType: String,
-  subject: String,
-  duration: Number,
-  totalMarks: Number,
+const ExamSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
 
-  startTime: Date,   // 🔥 NEW
-  endTime: Date,     // 🔥 NEW
+    instituteName: {
+      type: String,
+      required: true,
+      trim: true
+    },
 
-  status: {
-    type: String,
-    enum: ["draft", "published"],
-    default: "draft"
+    examType: {
+      type: String,
+      enum: ["Practice", "Test", "Final"],
+      default: "Practice"
+    },
+
+    subject: {
+      type: String,
+      trim: true
+    },
+
+    duration: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+
+    totalMarks: {
+      type: Number,
+      min: 0
+    },
+
+    startTime: {
+      type: Date,
+      required: true
+    },
+
+    endTime: {
+      type: Date,
+      required: true
+    },
+
+    status: {
+      type: String,
+      enum: ["draft", "published"],
+      default: "draft"
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true // 🔥 PERFORMANCE BOOST
+    }
   },
-
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+  {
+    timestamps: true // 🔥 VERY IMPORTANT
   }
-});
+);
 
 module.exports = mongoose.model("Exam", ExamSchema);
