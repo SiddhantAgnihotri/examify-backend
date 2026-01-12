@@ -179,7 +179,6 @@ exports.getExamSummary = async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    // Exam must belong to same teacher
     const exam = await Exam.findOne({
       _id: examId,
       status: "published",
@@ -194,11 +193,16 @@ exports.getExamSummary = async (req, res) => {
       return res.status(403).json({ message: "Exam not assigned" });
     }
 
-    // Check submission status
     const submission = await Submission.findOne({
       examId,
       studentId: req.user.id
     });
+
+    if (submission?.status === "checked") {
+      return res.status(403).json({
+        message: "You have already submitted this exam"
+      });
+    }
 
     const now = new Date();
     let examStatus = "Active";
@@ -210,16 +214,17 @@ exports.getExamSummary = async (req, res) => {
     res.json({
       title: exam.title,
       subject: exam.subject,
-      instituteName: exam.instituteName, // ✅ IMPORTANT
+      examType: exam.examType,
+      instituteName: exam.instituteName,
       duration: exam.duration,
       totalMarks: exam.totalMarks,
       totalQuestions,
       startTime: exam.startTime,
       endTime: exam.endTime,
-      status: examStatus,
-      alreadySubmitted: submission?.status === "checked"
+      status: examStatus
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to load exam summary" });
   }
 };
+
