@@ -165,3 +165,61 @@ exports.submitExam = async (req, res) => {
     res.status(500).json({ message: "Submission failed" });
   }
 };
+
+
+/* ===============================
+   EXAM SUMMARY (BEFORE START)
+================================ */
+exports.getExamSummary = async (req, res) => {
+  try {
+    const { examId } = req.params;
+
+    const student = await User.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Exam must belong to same teacher
+    const exam = await Exam.findOne({
+      _id: examId,
+      status: "published",
+      createdBy: student.createdBy
+    });
+
+    if (!exam) {
+      return res.status(404).json({ message: "Exam not available" });
+    }
+
+    if (!student.assignedExams.includes(examId)) {
+      return res.status(403).json({ message: "Exam not assigned" });
+    }
+
+    // Check submission status
+    const submission = await Submission.findOne({
+      examId,
+      studentId: req.user.id
+    });
+
+    const now = new Date();
+    let examStatus = "Active";
+    if (now < exam.startTime) examStatus = "Upcoming";
+    if (now > exam.endTime) examStatus = "Expired";
+
+    const totalQuestions = await Question.countDocuments({ examId });
+
+    res.json({
+      title: exam.title,
+      subject: exam.subject,
+      instituteName: exam.instituteName, // ✅ IMPORTANT
+      duration: exam.duration,
+      totalMarks: exam.totalMarks,
+      totalQuestions,
+      startTime: exam.startTime,
+      endTime: exam.endTime,
+      status: examStatus,
+      alreadySubmitted: submission?.status === "checked"
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load exam summary" });
+  }
+};
