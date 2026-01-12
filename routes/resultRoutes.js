@@ -6,7 +6,6 @@ const {
   getMyResults,
   getExamSubmissions,
   getSingleSubmission,
-  getMySubmissionDetails,      // 🆕 student
   getSubmissionDetailsTeacher  // 🆕 teacher
 } = require("../controllers/resultController");
 
@@ -19,13 +18,6 @@ router.get(
   "/my-results",
   protect(["student"]),
   getMyResults
-);
-
-// 🆕 Student: view own answer sheet
-router.get(
-  "/my-submission/:examId",
-  protect(["student"]),
-  getMySubmissionDetails
 );
 
 /* ===============================

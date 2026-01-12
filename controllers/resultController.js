@@ -17,54 +17,6 @@ exports.getMyResults = async (req, res) => {
   res.json(results);
 };
 
-/* ===============================
-   STUDENT: VIEW OWN ANSWER SHEET
-================================ */
-exports.getMySubmissionDetails = async (req, res) => {
-  try {
-    const { examId } = req.params;
-
-    const submission = await Submission.findOne({
-      examId,
-      studentId: req.user.id,
-      status: "checked"
-    });
-
-    if (!submission) {
-      return res.status(404).json({ message: "Submission not found" });
-    }
-
-    const exam = await Exam.findById(examId);
-    const questions = await Question.find({ examId });
-
-    const answersMap = {};
-    submission.answers.forEach(a => {
-      answersMap[a.questionId.toString()] = a.selectedOption;
-    });
-
-    const detailedQuestions = questions.map(q => ({
-      questionText: q.questionText,
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-      selectedOption: answersMap[q._id.toString()] || null,
-      marks: q.marks,
-      isCorrect:
-        answersMap[q._id.toString()] === q.correctAnswer
-    }));
-
-    res.json({
-      exam: {
-        title: exam.title,
-        subject: exam.subject
-      },
-      questions: detailedQuestions,
-      obtainedMarks: submission.obtainedMarks,
-      totalMarks: submission.totalMarks
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Failed to load submission" });
-  }
-};
 
 /* ===============================
    TEACHER: EXAM SUBMISSIONS
