@@ -17,7 +17,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://examify.vercel.app",
+      "https://examifyy.vercel.app",
       "https://examify.exoiteitservices.com"
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
