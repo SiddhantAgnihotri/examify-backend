@@ -1,9 +1,15 @@
 const Submission = require("../models/Submission");
 const Exam = require("../models/Exam");
+const Question = require("../models/Question");
+const User = require("../models/User");
 
-const getMyResults = async (req, res) => {
+/* ===============================
+   STUDENT: RESULT LIST
+================================ */
+exports.getMyResults = async (req, res) => {
   const results = await Submission.find({
-    studentId: req.user.id
+    studentId: req.user.id,
+    status: "checked"
   })
     .populate("examId", "title subject examType")
     .select("obtainedMarks totalMarks createdAt");
@@ -11,7 +17,59 @@ const getMyResults = async (req, res) => {
   res.json(results);
 };
 
-const getExamSubmissions = async (req, res) => {
+/* ===============================
+   STUDENT: VIEW OWN ANSWER SHEET
+================================ */
+exports.getMySubmissionDetails = async (req, res) => {
+  try {
+    const { examId } = req.params;
+
+    const submission = await Submission.findOne({
+      examId,
+      studentId: req.user.id,
+      status: "checked"
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    const exam = await Exam.findById(examId);
+    const questions = await Question.find({ examId });
+
+    const answersMap = {};
+    submission.answers.forEach(a => {
+      answersMap[a.questionId.toString()] = a.selectedOption;
+    });
+
+    const detailedQuestions = questions.map(q => ({
+      questionText: q.questionText,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      selectedOption: answersMap[q._id.toString()] || null,
+      marks: q.marks,
+      isCorrect:
+        answersMap[q._id.toString()] === q.correctAnswer
+    }));
+
+    res.json({
+      exam: {
+        title: exam.title,
+        subject: exam.subject
+      },
+      questions: detailedQuestions,
+      obtainedMarks: submission.obtainedMarks,
+      totalMarks: submission.totalMarks
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load submission" });
+  }
+};
+
+/* ===============================
+   TEACHER: EXAM SUBMISSIONS
+================================ */
+exports.getExamSubmissions = async (req, res) => {
   const { examId } = req.params;
 
   const submissions = await Submission.find({ examId })
@@ -21,7 +79,10 @@ const getExamSubmissions = async (req, res) => {
   res.json(submissions);
 };
 
-const getSingleSubmission = async (req, res) => {
+/* ===============================
+   TEACHER: BASIC SUBMISSION
+================================ */
+exports.getSingleSubmission = async (req, res) => {
   const submission = await Submission.findById(req.params.submissionId)
     .populate("studentId", "name userId")
     .populate("examId", "title");
@@ -33,8 +94,46 @@ const getSingleSubmission = async (req, res) => {
   res.json(submission);
 };
 
-module.exports = {
-  getMyResults,
-  getExamSubmissions,
-  getSingleSubmission
+/* ===============================
+   TEACHER: FULL ANSWER SHEET
+================================ */
+exports.getSubmissionDetailsTeacher = async (req, res) => {
+  try {
+    const submission = await Submission.findById(req.params.submissionId)
+      .populate("studentId", "name userId")
+      .populate("examId", "title subject");
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    const questions = await Question.find({
+      examId: submission.examId._id
+    });
+
+    const answersMap = {};
+    submission.answers.forEach(a => {
+      answersMap[a.questionId.toString()] = a.selectedOption;
+    });
+
+    const detailedQuestions = questions.map(q => ({
+      questionText: q.questionText,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      selectedOption: answersMap[q._id.toString()] || null,
+      marks: q.marks,
+      isCorrect:
+        answersMap[q._id.toString()] === q.correctAnswer
+    }));
+
+    res.json({
+      student: submission.studentId,
+      exam: submission.examId,
+      questions: detailedQuestions,
+      obtainedMarks: submission.obtainedMarks,
+      totalMarks: submission.totalMarks
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load submission details" });
+  }
 };

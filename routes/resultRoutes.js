@@ -2,26 +2,55 @@ const express = require("express");
 const router = express.Router();
 const protect = require("../middleware/authMiddleware");
 
-const resultController = require("../controllers/resultController");
+const {
+  getMyResults,
+  getExamSubmissions,
+  getSingleSubmission,
+  getMySubmissionDetails,      // 🆕 student
+  getSubmissionDetailsTeacher  // 🆕 teacher
+} = require("../controllers/resultController");
 
-// Student
+/* ===============================
+   STUDENT ROUTES
+================================ */
+
+// Student result list
 router.get(
   "/my-results",
   protect(["student"]),
-  resultController.getMyResults
+  getMyResults
 );
 
-// Teacher
+// 🆕 Student: view own answer sheet
+router.get(
+  "/my-submission/:examId",
+  protect(["student"]),
+  getMySubmissionDetails
+);
+
+/* ===============================
+   TEACHER ROUTES
+================================ */
+
+// Teacher: all submissions of an exam
 router.get(
   "/exam/:examId",
   protect(["teacher"]),
-  resultController.getExamSubmissions
+  getExamSubmissions
 );
 
+// Teacher: basic submission info
 router.get(
   "/submission/:submissionId",
   protect(["teacher"]),
-  resultController.getSingleSubmission
+  getSingleSubmission
+);
+
+// 🆕 Teacher: full answer sheet
+router.get(
+  "/submission/:submissionId/details",
+  protect(["teacher"]),
+  getSubmissionDetailsTeacher
 );
 
 module.exports = router;
