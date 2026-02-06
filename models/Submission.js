@@ -20,7 +20,17 @@ const SubmissionSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "Question"
         },
-        selectedOption: String
+
+        // MCQ → A/B/C/D
+        // Short/Long → text
+        // File → file path
+        selectedOption: String,
+
+        // Teacher-awarded marks
+        obtainedMarks: {
+          type: Number,
+          default: 0
+        }
       }
     ],
 
@@ -29,14 +39,18 @@ const SubmissionSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["in-progress", "checked"],
+      enum: ["in-progress", "pending", "checked"],
       default: "in-progress"
+    },
+
+    isManuallyChecked: {
+      type: Boolean,
+      default: false
     }
   },
   { timestamps: true }
 );
 
-// 🚫 Prevent multiple attempts at DB level
 SubmissionSchema.index({ examId: 1, studentId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Submission", SubmissionSchema);

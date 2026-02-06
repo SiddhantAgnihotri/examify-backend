@@ -46,6 +46,13 @@ const ExamSchema = new mongoose.Schema(
       required: true
     },
 
+    evaluationType: {
+      type: String,
+      enum: ["auto", "manual"],
+      default: "auto"
+    },
+
+
     status: {
       type: String,
       enum: ["draft", "published"],

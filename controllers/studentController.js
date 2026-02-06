@@ -113,6 +113,9 @@ exports.submitExam = async (req, res) => {
     const { answers } = req.body;
 
     const student = await User.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
 
     const exam = await Exam.findOne({
       _id: examId,
@@ -136,35 +139,64 @@ exports.submitExam = async (req, res) => {
 
     const questions = await Question.find({ examId });
 
-    let obtainedMarks = 0;
     let totalMarks = 0;
+    let obtainedMarks = 0;
 
-    questions.forEach((q) => {
+    const formattedAnswers = [];
+
+    for (const q of questions) {
       totalMarks += q.marks;
+
       const ans = answers.find(
         (a) => a.questionId === q._id.toString()
       );
-      if (ans && ans.selectedOption === q.correctAnswer) {
+
+      const answerValue = ans ? ans.selectedOption : null;
+      let marksForThis = 0;
+
+      // ✅ AUTO CHECK ONLY MCQ
+      if (q.type === "mcq" && answerValue === q.correctAnswer) {
+        marksForThis = q.marks;
         obtainedMarks += q.marks;
       }
-    });
 
-    submission.answers = answers;
+      formattedAnswers.push({
+        questionId: q._id,
+        selectedOption: answerValue,
+        obtainedMarks: marksForThis
+      });
+    }
+
+    submission.answers = formattedAnswers;
     submission.totalMarks = totalMarks;
     submission.obtainedMarks = obtainedMarks;
-    submission.status = "checked";
+
+    // 🔑 FINAL DECISION
+    if (exam.evaluationType === "manual") {
+      submission.status = "pending";
+      submission.isManuallyChecked = false;
+    } else {
+      submission.status = "checked";
+      submission.isManuallyChecked = true;
+    }
 
     await submission.save();
 
     res.json({
-      message: "Exam submitted successfully",
+      message:
+        exam.evaluationType === "manual"
+          ? "Exam submitted. Result will be available after teacher evaluation."
+          : "Exam submitted successfully",
       obtainedMarks,
-      totalMarks
+      totalMarks,
+      status: submission.status
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Submission failed" });
   }
 };
+
 
 
 /* ===============================

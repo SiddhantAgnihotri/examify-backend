@@ -6,7 +6,8 @@ const {
   getMyResults,
   getExamSubmissions,
   getSingleSubmission,
-  getSubmissionDetailsTeacher  // 🆕 teacher
+  getSubmissionDetailsTeacher,
+  evaluateSubmission  // 🆕 teacher
 } = require("../controllers/resultController");
 
 /* ===============================
@@ -45,5 +46,13 @@ router.get(
   protect(["teacher"]),
   getSubmissionDetailsTeacher
 );
+
+// 🆕 Teacher: evaluate submission
+router.post(
+  "/submission/:submissionId/evaluate",
+  protect(["teacher"]),
+  evaluateSubmission
+);
+
 
 module.exports = router;

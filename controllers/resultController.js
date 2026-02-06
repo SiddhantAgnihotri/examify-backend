@@ -1,7 +1,6 @@
 const Submission = require("../models/Submission");
 const Exam = require("../models/Exam");
 const Question = require("../models/Question");
-const User = require("../models/User");
 
 /* ===============================
    STUDENT: RESULT LIST
@@ -16,7 +15,6 @@ exports.getMyResults = async (req, res) => {
 
   res.json(results);
 };
-
 
 /* ===============================
    TEACHER: EXAM SUBMISSIONS
@@ -50,42 +48,99 @@ exports.getSingleSubmission = async (req, res) => {
    TEACHER: FULL ANSWER SHEET
 ================================ */
 exports.getSubmissionDetailsTeacher = async (req, res) => {
+  const submission = await Submission.findById(req.params.submissionId)
+    .populate("studentId", "name userId")
+    .populate("examId", "title subject evaluationType");
+
+  if (!submission) {
+    return res.status(404).json({ message: "Submission not found" });
+  }
+
+  const questions = await Question.find({
+    examId: submission.examId._id
+  });
+
+  const answersMap = {};
+  submission.answers.forEach(a => {
+    answersMap[a.questionId.toString()] = a;
+  });
+
+  const detailedQuestions = questions.map(q => ({
+    _id: q._id,
+    questionText: q.questionText,
+    type: q.type,
+    options: q.options,
+    correctAnswer: q.correctAnswer,
+    studentAnswer: answersMap[q._id]?.selectedOption || null,
+    obtainedMarks: answersMap[q._id]?.obtainedMarks || 0,
+    maxMarks: q.marks
+  }));
+
+  res.json({
+    student: submission.studentId,
+    exam: submission.examId,
+    questions: detailedQuestions,
+    obtainedMarks: submission.obtainedMarks,
+    totalMarks: submission.totalMarks
+  });
+};
+
+/* ===============================
+   TEACHER: MANUAL EVALUATION
+================================ */
+exports.evaluateSubmission = async (req, res) => {
   try {
-    const submission = await Submission.findById(req.params.submissionId)
-      .populate("studentId", "name userId")
-      .populate("examId", "title subject");
+    const { submissionId } = req.params;
+    const { answers } = req.body;
+    // answers = [{ questionId, obtainedMarks }]
+
+    const submission = await Submission.findById(submissionId)
+      .populate("examId");
 
     if (!submission) {
       return res.status(404).json({ message: "Submission not found" });
     }
 
-    const questions = await Question.find({
-      examId: submission.examId._id
+    // 🔒 Teacher ownership check
+    if (submission.examId.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // ❌ Auto exams cannot be manually evaluated
+    if (submission.examId.evaluationType === "auto") {
+      return res.status(400).json({
+        message: "Auto-evaluated exams cannot be manually checked"
+      });
+    }
+
+    let totalObtained = 0;
+
+    submission.answers = submission.answers.map(a => {
+      const updated = answers.find(
+        x => x.questionId === a.questionId.toString()
+      );
+
+      if (updated) {
+        a.obtainedMarks = Number(updated.obtainedMarks) || 0;
+      }
+
+      totalObtained += a.obtainedMarks || 0;
+      return a;
     });
 
-    const answersMap = {};
-    submission.answers.forEach(a => {
-      answersMap[a.questionId.toString()] = a.selectedOption;
-    });
+    submission.obtainedMarks = totalObtained;
+    submission.status = "checked";
+    submission.isManuallyChecked = true;
 
-    const detailedQuestions = questions.map(q => ({
-      questionText: q.questionText,
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-      selectedOption: answersMap[q._id.toString()] || null,
-      marks: q.marks,
-      isCorrect:
-        answersMap[q._id.toString()] === q.correctAnswer
-    }));
+    await submission.save();
 
     res.json({
-      student: submission.studentId,
-      exam: submission.examId,
-      questions: detailedQuestions,
+      message: "Submission evaluated successfully",
       obtainedMarks: submission.obtainedMarks,
       totalMarks: submission.totalMarks
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to load submission details" });
+    console.error(err);
+    res.status(500).json({ message: "Evaluation failed" });
   }
 };
