@@ -4,222 +4,260 @@ const Submission = require("../models/Submission");
 const User = require("../models/User");
 
 /* ===============================
-   GET ASSIGNED EXAMS
+   GET ASSIGNED EXAMS (SECURE)
 ================================ */
 exports.getAssignedExams = async (req, res) => {
-  const student = await User.findById(req.user.id);
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
-  }
+  try {
+    const student = await User.findById(req.user.id);
 
-  const exams = await Exam.find({
-    _id: { $in: student.assignedExams },
-    status: "published",
-    createdBy: student.createdBy
-  });
-
-  res.json(exams);
-};
-
-/* ===============================
-   START / RESUME EXAM
-================================ */
-exports.startExam = async (req, res) => {
-  const { examId } = req.params;
-
-  const student = await User.findById(req.user.id);
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
-  }
-
-  // 🚫 Block if already submitted (checked OR pending)
-  const alreadySubmitted = await Submission.findOne({
-    examId,
-    studentId: req.user.id,
-    status: { $in: ["checked", "pending"] }
-  });
-
-  if (alreadySubmitted) {
-    return res.status(403).json({
-      message: "You have already submitted this exam"
-    });
-  }
-
-  const exam = await Exam.findOne({
-    _id: examId,
-    status: "published",
-    createdBy: student.createdBy
-  });
-
-  if (!exam) {
-    return res.status(404).json({ message: "Exam not available" });
-  }
-
-  const now = new Date();
-  if (now < exam.startTime)
-    return res.status(403).json({ message: "Exam not started yet" });
-  if (now > exam.endTime)
-    return res.status(403).json({ message: "Exam time is over" });
-
-  if (!student.assignedExams.includes(examId)) {
-    return res.status(403).json({ message: "Exam not assigned" });
-  }
-
-  // Resume / create submission
-  let submission = await Submission.findOne({
-    examId,
-    studentId: req.user.id
-  });
-
-  if (!submission) {
-    submission = await Submission.create({
-      examId,
-      studentId: req.user.id,
-      answers: [],
-      status: "in-progress"
-    });
-  }
-
-  const questions = await Question.find(
-    { examId },
-    { correctAnswer: 0 }
-  );
-
-  res.json({
-    questions,
-    previousAnswers: submission.answers,
-    duration: exam.duration
-  });
-};
-
-/* ===============================
-   SUBMIT EXAM
-================================ */
-exports.submitExam = async (req, res) => {
-  const { examId } = req.params;
-  const { answers } = req.body;
-
-  const student = await User.findById(req.user.id);
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
-  }
-
-  const exam = await Exam.findOne({
-    _id: examId,
-    createdBy: student.createdBy
-  });
-
-  if (!exam) {
-    return res.status(403).json({ message: "Invalid exam" });
-  }
-
-  const submission = await Submission.findOne({
-    examId,
-    studentId: req.user.id
-  });
-
-  if (!submission || submission.status !== "in-progress") {
-    return res.status(400).json({ message: "Invalid submission" });
-  }
-
-  const questions = await Question.find({ examId });
-
-  let totalMarks = 0;
-  let obtainedMarks = 0;
-
-  const formattedAnswers = [];
-
-  for (const q of questions) {
-    totalMarks += q.marks;
-
-    const ans = answers.find(
-      a => a.questionId === q._id.toString()
-    );
-
-    const answerValue = ans ? ans.selectedOption : null;
-    let marksForThis = 0;
-
-    // ✅ Auto-check only MCQ
-    if (q.type === "mcq" && answerValue === q.correctAnswer) {
-      marksForThis = q.marks;
-      obtainedMarks += q.marks;
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
     }
 
-    formattedAnswers.push({
-      questionId: q._id,
-      selectedOption: answerValue,
-      obtainedMarks: marksForThis
+    const exams = await Exam.find({
+      _id: { $in: student.assignedExams },
+      status: "published",
+      createdBy: student.createdBy
     });
+
+    res.json(exams);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch exams" });
   }
-
-  submission.answers = formattedAnswers;
-  submission.totalMarks = totalMarks;
-  submission.obtainedMarks = obtainedMarks;
-
-  if (exam.evaluationType === "manual") {
-    submission.status = "pending";
-    submission.isManuallyChecked = false;
-  } else {
-    submission.status = "checked";
-    submission.isManuallyChecked = true;
-  }
-
-  await submission.save();
-
-  res.json({
-    message:
-      exam.evaluationType === "manual"
-        ? "Exam submitted. Result will be available after evaluation."
-        : "Exam submitted successfully",
-    obtainedMarks,
-    totalMarks,
-    status: submission.status
-  });
 };
 
 /* ===============================
-   EXAM SUMMARY
+   START / RESUME EXAM (SECURE)
+================================ */
+exports.startExam = async (req, res) => {
+  try {
+    const { examId } = req.params;
+
+    const student = await User.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // ❌ Already submitted (AUTO or MANUAL)
+    const alreadySubmitted = await Submission.findOne({
+      examId,
+      studentId: req.user.id,
+      status: { $in: ["checked", "pending"] }
+    });
+
+    if (alreadySubmitted) {
+      return res.status(403).json({
+        message: "You have already submitted this exam"
+      });
+    }
+
+    const exam = await Exam.findOne({
+      _id: examId,
+      status: "published",
+      createdBy: student.createdBy
+    });
+
+    if (!exam) {
+      return res.status(404).json({ message: "Exam not available" });
+    }
+
+    const now = new Date();
+    if (now < exam.startTime) {
+      return res.status(403).json({ message: "Exam not started yet" });
+    }
+    if (now > exam.endTime) {
+      return res.status(403).json({ message: "Exam time is over" });
+    }
+
+    if (!student.assignedExams.includes(examId)) {
+      return res.status(403).json({ message: "Exam not assigned" });
+    }
+
+    let submission = await Submission.findOne({
+      examId,
+      studentId: req.user.id
+    });
+
+    if (!submission) {
+      submission = await Submission.create({
+        examId,
+        studentId: req.user.id,
+        answers: [],
+        status: "in-progress"
+      });
+    }
+
+    const questions = await Question.find(
+      { examId },
+      { correctAnswer: 0 }
+    );
+
+    res.json({
+      questions,
+      previousAnswers: submission.answers
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to start exam" });
+  }
+};
+
+/* ===============================
+   SUBMIT EXAM (SECURE)
+================================ */
+exports.submitExam = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const { answers } = req.body;
+
+    const student = await User.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    const exam = await Exam.findOne({
+      _id: examId,
+      createdBy: student.createdBy
+    });
+
+    if (!exam) {
+      return res.status(403).json({ message: "Invalid exam" });
+    }
+
+    const submission = await Submission.findOne({
+      examId,
+      studentId: req.user.id
+    });
+
+    if (!submission || submission.status !== "in-progress") {
+      return res.status(400).json({ message: "Invalid submission" });
+    }
+
+    const questions = await Question.find({ examId });
+
+    let totalMarks = 0;
+    let obtainedMarks = 0;
+    const formattedAnswers = [];
+
+    for (const q of questions) {
+      totalMarks += q.marks;
+
+      const ans = answers.find(
+        a => a.questionId === q._id.toString()
+      );
+
+      const answerValue = ans ? ans.selectedOption : null;
+      let marksForThis = 0;
+
+      if (q.type === "mcq" && answerValue === q.correctAnswer) {
+        marksForThis = q.marks;
+        obtainedMarks += q.marks;
+      }
+
+      formattedAnswers.push({
+        questionId: q._id,
+        selectedOption: answerValue,
+        obtainedMarks: marksForThis
+      });
+    }
+
+    submission.answers = formattedAnswers;
+    submission.totalMarks = totalMarks;
+    submission.obtainedMarks = obtainedMarks;
+
+    if (exam.evaluationType === "manual") {
+      submission.status = "pending";
+      submission.isManuallyChecked = false;
+    } else {
+      submission.status = "checked";
+      submission.isManuallyChecked = true;
+    }
+
+    await submission.save();
+
+    res.json({
+      message:
+        exam.evaluationType === "manual"
+          ? "Exam submitted. Result will be available after teacher evaluation."
+          : "Exam submitted successfully",
+      obtainedMarks,
+      totalMarks,
+      status: submission.status
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Submission failed" });
+  }
+};
+
+/* ===============================
+   EXAM SUMMARY (BEFORE START)
 ================================ */
 exports.getExamSummary = async (req, res) => {
-  const { examId } = req.params;
+  try {
+    const { examId } = req.params;
 
-  const student = await User.findById(req.user.id);
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
-  }
+    const student = await User.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
 
-  const exam = await Exam.findOne({
-    _id: examId,
-    status: "published",
-    createdBy: student.createdBy
-  });
-
-  if (!exam) {
-    return res.status(404).json({ message: "Exam not available" });
-  }
-
-  const submission = await Submission.findOne({
-    examId,
-    studentId: req.user.id
-  });
-
-  if (submission && ["checked", "pending"].includes(submission.status)) {
-    return res.status(403).json({
-      message: "You have already submitted this exam"
+    const exam = await Exam.findOne({
+      _id: examId,
+      status: "published",
+      createdBy: student.createdBy
     });
+
+    if (!exam) {
+      return res.status(404).json({ message: "Exam not available" });
+    }
+
+    if (!student.assignedExams.includes(examId)) {
+      return res.status(403).json({ message: "Exam not assigned" });
+    }
+
+    const submission = await Submission.findOne({
+      examId,
+      studentId: req.user.id
+    });
+
+    if (submission?.status !== "in-progress") {
+      return res.status(403).json({
+        message: "You have already submitted this exam"
+      });
+    }
+
+    const now = new Date();
+    let examStatus = "Active";
+    if (now < exam.startTime) examStatus = "Upcoming";
+    if (now > exam.endTime) examStatus = "Expired";
+
+    const totalQuestions = await Question.countDocuments({ examId });
+
+    res.json({
+      title: exam.title,
+      subject: exam.subject,
+      examType: exam.examType,
+      instituteName: exam.instituteName,
+      duration: exam.duration,
+      totalMarks: exam.totalMarks,
+      totalQuestions,
+      startTime: exam.startTime,
+      endTime: exam.endTime,
+      status: examStatus
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load exam summary" });
   }
+};
 
-  const totalQuestions = await Question.countDocuments({ examId });
+/* ===============================
+   STUDENT: PENDING RESULTS
+================================ */
+exports.getPendingResults = async (req, res) => {
+  const submissions = await Submission.find({
+    studentId: req.user.id,
+    status: "pending"
+  }).populate("examId", "title subject");
 
-  res.json({
-    title: exam.title,
-    subject: exam.subject,
-    instituteName: exam.instituteName,
-    duration: exam.duration,
-    totalMarks: exam.totalMarks,
-    totalQuestions,
-    startTime: exam.startTime,
-    endTime: exam.endTime,
-    evaluationType: exam.evaluationType
-  });
+  res.json(submissions);
 };
