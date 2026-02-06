@@ -8,10 +8,10 @@ const Question = require("../models/Question");
 exports.getMyResults = async (req, res) => {
   const results = await Submission.find({
     studentId: req.user.id,
-    status: "checked"
+    status: { $in: ["checked", "pending"] }
   })
-    .populate("examId", "title subject examType")
-    .select("obtainedMarks totalMarks createdAt");
+    .populate("examId", "title subject examType evaluationType")
+    .select("obtainedMarks totalMarks status createdAt");
 
   res.json(results);
 };

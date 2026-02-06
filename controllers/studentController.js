@@ -260,3 +260,11 @@ exports.getExamSummary = async (req, res) => {
   }
 };
 
+exports.getPendingResults = async (req, res) => {
+  const submissions = await Submission.find({
+    studentId: req.user.id,
+    status: "in-progress"
+  }).populate("examId", "title subject");
+
+  res.json(submissions);
+};

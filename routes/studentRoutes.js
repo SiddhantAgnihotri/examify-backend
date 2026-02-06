@@ -17,6 +17,12 @@ router.get(
   protect(["student"]),
   getExamSummary
 );
+router.get(
+  "/pending-results",
+  protect(["student"]),
+  studentController.getPendingResults
+);
+
 
 
 module.exports = router;
