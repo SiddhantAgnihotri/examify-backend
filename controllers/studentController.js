@@ -220,11 +220,22 @@ exports.getExamSummary = async (req, res) => {
       studentId: req.user.id
     });
 
-    if (submission?.status !== "in-progress") {
-      return res.status(403).json({
-        message: "You have already submitted this exam"
+    if (submission && submission.status !== "in-progress") {
+      return res.json({
+        title: exam.title,
+        subject: exam.subject,
+        examType: exam.examType,
+        instituteName: exam.instituteName,
+        duration: exam.duration,
+        totalMarks: exam.totalMarks,
+        totalQuestions: await Question.countDocuments({ examId }),
+        startTime: exam.startTime,
+        endTime: exam.endTime,
+        status: "Submitted",
+        submissionStatus: submission.status   // "checked" | "pending"
       });
     }
+
 
     const now = new Date();
     let examStatus = "Active";
