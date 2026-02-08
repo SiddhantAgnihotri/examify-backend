@@ -261,3 +261,45 @@ exports.getPendingResults = async (req, res) => {
 
   res.json(submissions);
 };
+
+
+exports.uploadFileAnswer = async (req, res) => {
+  try {
+    const { examId, questionId } = req.params;
+
+    const submission = await Submission.findOne({
+      examId,
+      studentId: req.user.id
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    const filePath = req.file.path;
+
+    const existing = submission.answers.find(
+      a => a.questionId.toString() === questionId
+    );
+
+    if (existing) {
+      existing.selectedOption = filePath;
+    } else {
+      submission.answers.push({
+        questionId,
+        selectedOption: filePath,
+        obtainedMarks: 0
+      });
+    }
+
+    await submission.save();
+
+    res.json({
+      message: "File uploaded successfully",
+      filePath
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "File upload failed" });
+  }
+};

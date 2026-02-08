@@ -29,6 +29,7 @@ app.use(
 
 
 
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -41,6 +42,7 @@ app.use("/api/student", require("./routes/studentRoutes"));
 app.use("/api/exam", require("./routes/examRoutes"));
 app.use("/api/question", require("./routes/questionRoutes"));
 app.use("/api/results", require("./routes/resultRoutes"));
+app.use("/uploads", express.static("uploads"));
 
 /* ===============================
    HEALTH CHECK (VERY IMPORTANT)
