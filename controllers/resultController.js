@@ -66,7 +66,8 @@ exports.getSubmissionDetailsTeacher = async (req, res) => {
   });
 
   const detailedQuestions = questions.map(q => {
-    const answer = answersMap[q._id];
+    // ✅ FIX IS HERE
+    const answer = answersMap[q._id.toString()];
 
     return {
       _id: q._id,
@@ -75,11 +76,11 @@ exports.getSubmissionDetailsTeacher = async (req, res) => {
       options: q.options,
       correctAnswer: q.correctAnswer,
 
-      // ✅ for short / long
+      // short / long
       studentAnswer:
         q.type !== "file" ? answer?.selectedOption || null : null,
 
-      // ✅ for file
+      // file
       fileUrl:
         q.type === "file" ? answer?.selectedOption || null : null,
 
@@ -87,7 +88,6 @@ exports.getSubmissionDetailsTeacher = async (req, res) => {
       maxMarks: q.marks
     };
   });
-
 
   res.json({
     student: submission.studentId,
@@ -97,6 +97,7 @@ exports.getSubmissionDetailsTeacher = async (req, res) => {
     totalMarks: submission.totalMarks
   });
 };
+
 
 /* ===============================
    TEACHER: MANUAL EVALUATION
