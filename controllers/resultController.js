@@ -65,16 +65,29 @@ exports.getSubmissionDetailsTeacher = async (req, res) => {
     answersMap[a.questionId.toString()] = a;
   });
 
-  const detailedQuestions = questions.map(q => ({
-    _id: q._id,
-    questionText: q.questionText,
-    type: q.type,
-    options: q.options,
-    correctAnswer: q.correctAnswer,
-    studentAnswer: answersMap[q._id]?.selectedOption || null,
-    obtainedMarks: answersMap[q._id]?.obtainedMarks || 0,
-    maxMarks: q.marks
-  }));
+  const detailedQuestions = questions.map(q => {
+    const answer = answersMap[q._id];
+
+    return {
+      _id: q._id,
+      questionText: q.questionText,
+      type: q.type,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+
+      // ✅ for short / long
+      studentAnswer:
+        q.type !== "file" ? answer?.selectedOption || null : null,
+
+      // ✅ for file
+      fileUrl:
+        q.type === "file" ? answer?.selectedOption || null : null,
+
+      obtainedMarks: answer?.obtainedMarks || 0,
+      maxMarks: q.marks
+    };
+  });
+
 
   res.json({
     student: submission.studentId,
